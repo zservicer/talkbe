@@ -1,0 +1,11 @@
+CustomerListen: ":13221"
+CustomerGRPCClientConfig:
+  target: "127.0.0.1:12222"
+CustomerUserGRPCClientConfig:
+  target: "127.0.0.1:12222"
+
+ServicerListen: ":13222"
+ServicerGRPCClientConfig:
+  target: "127.0.0.1:12222"
+ServicerUserGRPCClientConfig:
+  target: "127.0.0.1:12222"
