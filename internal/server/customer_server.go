@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-func NewCustomerServer(controller *controller.CustomerController, userTokenHelper defs.UserTokenHelper, model defs.ModelEx,
+func NewCustomerServer(controller *controller.CustomerController, userTokenHelper defs.CustomerUserTokenHelper, model defs.ModelEx,
 	logger l.Wrapper) talkpb.CustomerTalkServiceServer {
 	if logger == nil {
 		logger = l.NewNopLoggerWrapper()
@@ -37,21 +37,22 @@ type customerServerImpl struct {
 	talkpb.UnimplementedCustomerTalkServiceServer
 
 	logger          l.Wrapper
-	userTokenHelper defs.UserTokenHelper
+	userTokenHelper defs.CustomerUserTokenHelper
 	model           defs.ModelEx
 
 	controller *controller.CustomerController
 }
 
 func (impl *customerServerImpl) QueryTalks(ctx context.Context, request *talkpb.QueryTalksRequest) (*talkpb.QueryTalksResponse, error) {
-	_, userID, _, err := impl.userTokenHelper.ExtractUserFromGRPCContext(ctx, false)
+	_, userID, _, actID, bizID, err := impl.userTokenHelper.ExtractUserFromGRPCContext(ctx, false)
 	if err != nil {
 		impl.logger.WithFields(l.ErrorField(err)).Error("ExtractUserInfoFromGRPCContextFailed")
 
 		return nil, gRPCError(codes.Unauthenticated, nil)
 	}
 
-	talkInfos, err := impl.model.QueryTalks(ctx, userID, 0, "", vo.TaskStatusesMapPb2Db(request.GetStatuses()))
+	talkInfos, err := impl.model.QueryTalks(ctx, []string{actID}, []string{bizID}, userID, 0, "",
+		vo.TaskStatusesMapPb2Db(request.GetStatuses()))
 	if err != nil {
 		impl.logger.WithFields(l.ErrorField(err)).Error("QueryTalksFailed")
 
@@ -68,7 +69,7 @@ func (impl *customerServerImpl) Talk(server talkpb.CustomerTalkService_TalkServe
 		return gRPCMessageError(codes.InvalidArgument, "noServerStream")
 	}
 
-	_, userID, userName, err := impl.userTokenHelper.ExtractUserFromGRPCContext(server.Context(), false)
+	_, userID, userName, actID, bizID, err := impl.userTokenHelper.ExtractUserFromGRPCContext(server.Context(), false)
 	if err != nil {
 		impl.logger.WithFields(l.ErrorField(err)).Error("ExtractUserInfoFromGRPCContextFailed")
 
@@ -94,7 +95,8 @@ func (impl *customerServerImpl) Talk(server talkpb.CustomerTalkService_TalkServe
 		return gRPCError(codes.Unknown, err)
 	}
 
-	talkID, createTalkFlag, err := impl.handleTalkStart(server.Context(), userID, userName, request)
+	talkID, createTalkFlag, err := impl.handleTalkStart(server.Context(), userID,
+		userName, actID, bizID, request)
 	if err != nil {
 		logger.WithFields(l.ErrorField(err)).Error("handleTalkStartFailed")
 
@@ -105,7 +107,7 @@ func (impl *customerServerImpl) Talk(server talkpb.CustomerTalkService_TalkServe
 
 	chSendMessage := make(chan *talkpb.TalkResponse, 100)
 
-	customer := controller.NewCustomer(uniqueID, talkID, createTalkFlag, userID, chSendMessage)
+	customer := controller.NewCustomer(actID, bizID, uniqueID, talkID, createTalkFlag, userID, chSendMessage)
 
 	err = impl.controller.InstallCustomer(customer)
 	if err != nil {
@@ -161,8 +163,8 @@ func (impl *customerServerImpl) Talk(server talkpb.CustomerTalkService_TalkServe
 //
 //
 
-func (impl *customerServerImpl) handleTalkStart(ctx context.Context, userID uint64, userName string,
-	request *talkpb.TalkRequest) (talkID string, talkCreateFlag bool, err error) {
+func (impl *customerServerImpl) handleTalkStart(ctx context.Context, userID uint64,
+	userName, actID, bizID string, request *talkpb.TalkRequest) (talkID string, talkCreateFlag bool, err error) {
 	if request == nil {
 		err = gRPCMessageError(codes.InvalidArgument, "noRequest")
 
@@ -182,6 +184,8 @@ func (impl *customerServerImpl) handleTalkStart(ctx context.Context, userID uint
 			StartAt:         time.Now().Unix(),
 			CreatorID:       userID,
 			CreatorUserName: userName,
+			ActID:           actID,
+			BizID:           bizID,
 		})
 
 		talkCreateFlag = true
@@ -192,7 +196,7 @@ func (impl *customerServerImpl) handleTalkStart(ctx context.Context, userID uint
 	if request.GetOpen() != nil {
 		talkID = request.GetOpen().GetTalkId()
 
-		err = impl.model.OpenTalk(ctx, talkID)
+		err = impl.model.OpenTalk(ctx, []string{actID}, []string{bizID}, talkID)
 
 		return
 	}

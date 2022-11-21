@@ -74,7 +74,7 @@ func (impl *customerMDImpl) InstallCustomer(ctx context.Context, customer defs.C
 		return
 	}
 
-	ok, err := impl.mdi.GetM().TalkExists(ctx, customer.GetTalkID())
+	ok, err := impl.mdi.GetM().TalkExists(ctx, []string{customer.GetActID()}, []string{customer.GetBizID()}, customer.GetTalkID())
 	if err != nil {
 		impl.logger.WithFields(l.StringField("talkID", customer.GetTalkID()), l.ErrorField(err)).
 			Error("TalkNotExistsFailed")
@@ -204,7 +204,8 @@ func (impl *customerMDImpl) CustomerClose(ctx context.Context, customer defs.Cus
 		return
 	}
 
-	if err := impl.mdi.GetM().CloseTalk(ctx, customer.GetTalkID()); err != nil {
+	if err := impl.mdi.GetM().CloseTalk(ctx, []string{customer.GetActID()}, []string{customer.GetBizID()},
+		customer.GetTalkID()); err != nil {
 		impl.logger.WithFields(l.ErrorField(err)).Error("CloseTalkFailed")
 
 		return

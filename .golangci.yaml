@@ -69,7 +69,6 @@ linters:
   enable:
     - bodyclose
     - depguard
-    - dogsled
     - errcheck
     - exportloopref
     - funlen

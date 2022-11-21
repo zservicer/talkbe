@@ -42,7 +42,8 @@ func (impl *memUserPassModelImpl) AddUser(ctx context.Context, userName, passwor
 		CreateAt: time.Now().Unix(),
 	}
 
-	user = &(*impl.users[uid])
+	u := *impl.users[uid]
+	user = &u
 
 	return
 }
@@ -72,6 +73,7 @@ func (impl *memUserPassModelImpl) GetUser(ctx context.Context, userID uint64) (u
 		UserName: u.UserName,
 		Password: u.Password,
 		CreateAt: u.CreateAt,
+		ExData:   u.ExData,
 	}
 
 	return
@@ -88,6 +90,7 @@ func (impl *memUserPassModelImpl) GetUserByUserName(ctx context.Context, userNam
 				UserName: u.UserName,
 				Password: u.Password,
 				CreateAt: u.CreateAt,
+				ExData:   u.ExData,
 			}
 
 			return
@@ -109,8 +112,45 @@ func (impl *memUserPassModelImpl) ListUsers(ctx context.Context) (users []*userp
 			UserName: u.UserName,
 			Password: u.Password,
 			CreateAt: u.CreateAt,
+			ExData:   u.ExData,
 		})
 	}
+
+	return
+}
+
+func (impl *memUserPassModelImpl) UpdateUserExData(ctx context.Context, userID uint64, key string, val interface{}) (err error) {
+	impl.usersLock.Lock()
+	defer impl.usersLock.Unlock()
+
+	u, ok := impl.users[userID]
+	if !ok {
+		err = commerr.ErrNotFound
+
+		return
+	}
+
+	if len(u.ExData) == 0 {
+		u.ExData = make(map[string]interface{})
+	}
+
+	u.ExData[key] = val
+
+	return
+}
+
+func (impl *memUserPassModelImpl) UpdateUserAllExData(ctx context.Context, userID uint64, exData map[string]interface{}) (err error) {
+	impl.usersLock.Lock()
+	defer impl.usersLock.Unlock()
+
+	u, ok := impl.users[userID]
+	if !ok {
+		err = commerr.ErrNotFound
+
+		return
+	}
+
+	u.ExData = exData
 
 	return
 }

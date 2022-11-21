@@ -8,6 +8,7 @@ import (
 	"github.com/zservicer/protorepo/gens/talkpb"
 	"github.com/zservicer/talkbe/internal/defs"
 	"github.com/zservicer/talkbe/internal/vo"
+	"golang.org/x/exp/slices"
 )
 
 func NewServicerMD(mdi defs.ServicerMDI, logger l.Wrapper) defs.ServicerMD {
@@ -53,7 +54,7 @@ func (impl *servicerMDImpl) OnMessageIncoming(senderUniqueID uint64, talkID stri
 
 func (impl *servicerMDImpl) OnTalkCreate(talkID string) {
 	impl.mrRunner.Post(func() {
-		talkInfo, err := impl.mdi.GetM().GetTalkInfo(context.TODO(), talkID)
+		talkInfo, err := impl.mdi.GetM().GetTalkInfo(context.TODO(), nil, nil, talkID)
 		if err != nil {
 			impl.logger.WithFields(l.ErrorField(err)).Error("GetTalkInfoFailed")
 
@@ -67,7 +68,7 @@ func (impl *servicerMDImpl) OnTalkCreate(talkID string) {
 				},
 			},
 		}
-		impl.send4AllServicers(func(servicer defs.Servicer) error {
+		impl.send4AllServicers(talkInfo.ActID, talkInfo.BizID, func(servicer defs.Servicer) error {
 			return servicer.SendMessage(resp)
 		})
 	})
@@ -75,6 +76,13 @@ func (impl *servicerMDImpl) OnTalkCreate(talkID string) {
 
 func (impl *servicerMDImpl) OnTalkClose(talkID string) {
 	impl.mrRunner.Post(func() {
+		talkInfo, err := impl.mdi.GetM().GetTalkInfo(context.TODO(), nil, nil, talkID)
+		if err != nil {
+			impl.logger.WithFields(l.ErrorField(err)).Error("GetTalkInfoFailed")
+
+			return
+		}
+
 		resp := &talkpb.ServiceResponse{
 			Response: &talkpb.ServiceResponse_Close{
 				Close: &talkpb.ServiceTalkClose{
@@ -83,7 +91,7 @@ func (impl *servicerMDImpl) OnTalkClose(talkID string) {
 			},
 		}
 
-		impl.send4AllServicers(func(servicer defs.Servicer) error {
+		impl.send4AllServicers(talkInfo.ActID, talkInfo.BizID, func(servicer defs.Servicer) error {
 			return servicer.SendMessage(resp)
 		})
 	})
@@ -91,7 +99,7 @@ func (impl *servicerMDImpl) OnTalkClose(talkID string) {
 
 func (impl *servicerMDImpl) OnServicerAttachMessage(talkID string, servicerID uint64) {
 	impl.mrRunner.Post(func() {
-		talkInfo, err := impl.mdi.GetM().GetTalkInfo(context.TODO(), talkID)
+		talkInfo, err := impl.mdi.GetM().GetTalkInfo(context.TODO(), nil, nil, talkID)
 		if err != nil {
 			impl.logger.WithFields(l.ErrorField(err)).Error("GetTalkInfoFailed")
 
@@ -107,7 +115,7 @@ func (impl *servicerMDImpl) OnServicerAttachMessage(talkID string, servicerID ui
 			},
 		}
 
-		impl.send4AllServicers(func(servicer defs.Servicer) error {
+		impl.send4AllServicers(talkInfo.ActID, talkInfo.BizID, func(servicer defs.Servicer) error {
 			return servicer.SendMessage(resp)
 		})
 
@@ -133,7 +141,7 @@ func (impl *servicerMDImpl) OnServicerAttachMessage(talkID string, servicerID ui
 }
 
 func (impl *servicerMDImpl) OnServicerDetachMessage(talkID string, servicerID uint64) {
-	talkInfo, err := impl.mdi.GetM().GetTalkInfo(context.TODO(), talkID)
+	talkInfo, err := impl.mdi.GetM().GetTalkInfo(context.TODO(), nil, nil, talkID)
 	if err != nil {
 		impl.logger.WithFields(l.ErrorField(err)).Error("GetTalkInfoFailed")
 
@@ -149,7 +157,7 @@ func (impl *servicerMDImpl) OnServicerDetachMessage(talkID string, servicerID ui
 				},
 			},
 		}
-		impl.send4AllServicers(func(servicer defs.Servicer) error {
+		impl.send4AllServicers(talkInfo.ActID, talkInfo.BizID, func(servicer defs.Servicer) error {
 			return servicer.SendMessage(resp)
 		})
 	})
@@ -197,7 +205,7 @@ func (impl *servicerMDImpl) UninstallServicer(ctx context.Context, servicer defs
 	if len(talkServicers) == 0 {
 		delete(impl.servicers, servicer.GetUserID())
 
-		talkInfos, _ := impl.mdi.GetM().GetServicerTalkInfos(ctx, servicer.GetUserID())
+		talkInfos, _ := impl.mdi.GetM().GetServicerTalkInfos(ctx, servicer.GetActIDs(), servicer.GetBizIDs(), servicer.GetUserID())
 		for _, info := range talkInfos {
 			impl.mdi.RemoveTrackTalk(context.TODO(), info.TalkID)
 		}
@@ -211,7 +219,7 @@ func (impl *servicerMDImpl) ServicerAttachTalk(ctx context.Context, talkID strin
 		return
 	}
 
-	servicerID, err := impl.mdi.GetM().GetTalkServicerID(ctx, talkID)
+	servicerID, err := impl.mdi.GetM().GetTalkServicerID(ctx, servicer.GetActIDs(), servicer.GetBizIDs(), talkID)
 	if err != nil {
 		impl.logger.WithFields(l.ErrorField(err)).Error("GetTalkServicerIDFailed")
 
@@ -227,7 +235,7 @@ func (impl *servicerMDImpl) ServicerAttachTalk(ctx context.Context, talkID strin
 		}
 	}
 
-	err = impl.mdi.GetM().UpdateTalkServiceID(ctx, talkID, servicer.GetUserID())
+	err = impl.mdi.GetM().UpdateTalkServiceID(ctx, servicer.GetActIDs(), servicer.GetBizIDs(), talkID, servicer.GetUserID())
 	if err != nil {
 		impl.logger.WithFields(l.ErrorField(err)).Error("UpdateTalkServiceID")
 	}
@@ -242,7 +250,7 @@ func (impl *servicerMDImpl) ServicerDetachTalk(ctx context.Context, talkID strin
 		return
 	}
 
-	servicerID, err := impl.mdi.GetM().GetTalkServicerID(ctx, talkID)
+	servicerID, err := impl.mdi.GetM().GetTalkServicerID(ctx, servicer.GetActIDs(), servicer.GetBizIDs(), talkID)
 	if err != nil {
 		impl.logger.WithFields(l.StringField("talkID", talkID)).Error("GetTalkServicerIDFailed")
 
@@ -265,7 +273,7 @@ func (impl *servicerMDImpl) ServicerDetachTalk(ctx context.Context, talkID strin
 		return
 	}
 
-	if err = impl.mdi.GetM().UpdateTalkServiceID(ctx, talkID, 0); err != nil {
+	if err = impl.mdi.GetM().UpdateTalkServiceID(ctx, servicer.GetActIDs(), servicer.GetBizIDs(), talkID, 0); err != nil {
 		impl.logger.WithFields(l.ErrorField(err)).Error("UpdateTalkServiceID")
 	}
 
@@ -305,7 +313,7 @@ func (impl *servicerMDImpl) ServiceMessage(ctx context.Context, servicer defs.Se
 		return
 	}
 
-	servicerID, err := impl.mdi.GetM().GetTalkServicerID(ctx, talkID)
+	servicerID, err := impl.mdi.GetM().GetTalkServicerID(ctx, servicer.GetActIDs(), servicer.GetBizIDs(), talkID)
 	if err != nil {
 		impl.logger.WithFields(l.ErrorField(err)).Error("GetTalkServicerIDFailed")
 
@@ -344,7 +352,7 @@ func (impl *servicerMDImpl) ServiceMessage(ctx context.Context, servicer defs.Se
 //
 
 func (impl *servicerMDImpl) sendAttachedTalks(ctx context.Context, servicer defs.Servicer) (talkIDs []string, err error) {
-	talkInfos, err := impl.mdi.GetM().GetServicerTalkInfos(ctx, servicer.GetUserID())
+	talkInfos, err := impl.mdi.GetM().GetServicerTalkInfos(ctx, servicer.GetActIDs(), servicer.GetBizIDs(), servicer.GetUserID())
 	if err != nil {
 		impl.logger.WithFields(l.ErrorField(err)).Error("GetServicerTalkInfosFailed")
 
@@ -378,7 +386,7 @@ func (impl *servicerMDImpl) sendAttachedTalks(ctx context.Context, servicer defs
 }
 
 func (impl *servicerMDImpl) sendPendingTalks(ctx context.Context, servicer defs.Servicer) (err error) {
-	talkInfos, err := impl.mdi.GetM().GetPendingTalkInfos(ctx)
+	talkInfos, err := impl.mdi.GetM().GetPendingTalkInfos(ctx, servicer.GetActIDs(), servicer.GetBizIDs())
 	if err != nil {
 		impl.logger.WithFields(l.ErrorField(err)).Error("GetPendingTalkInfosFailed")
 
@@ -400,7 +408,7 @@ func (impl *servicerMDImpl) sendPendingTalks(ctx context.Context, servicer defs.
 }
 
 func (impl *servicerMDImpl) getTalkInfoWithMessages(ctx context.Context, talkID string) (*talkpb.ServiceTalkInfoAndMessages, error) {
-	talkInfo, err := impl.mdi.GetM().GetTalkInfo(ctx, talkID)
+	talkInfo, err := impl.mdi.GetM().GetTalkInfo(ctx, nil, nil, talkID)
 	if err != nil {
 		impl.logger.WithFields(l.ErrorField(err)).Error("GetTalkInfoFailed")
 
@@ -421,7 +429,7 @@ func (impl *servicerMDImpl) getTalkInfoWithMessages(ctx context.Context, talkID 
 }
 
 func (impl *servicerMDImpl) sendResponseToServicersForTalk(excludedUniqueID uint64, talkID string, resp *talkpb.ServiceResponse) {
-	servicerID, err := impl.mdi.GetM().GetTalkServicerID(context.TODO(), talkID)
+	servicerID, err := impl.mdi.GetM().GetTalkServicerID(context.TODO(), nil, nil, talkID)
 	if err != nil {
 		impl.logger.WithFields(l.ErrorField(err)).Error("GetTalkServicerIDFailed")
 
@@ -453,9 +461,17 @@ func (impl *servicerMDImpl) sendResponseToServicersForTalk(excludedUniqueID uint
 	}
 }
 
-func (impl *servicerMDImpl) send4AllServicers(do func(defs.Servicer) error) {
+func (impl *servicerMDImpl) send4AllServicers(actID, bizID string, do func(defs.Servicer) error) {
 	for servicerID, ss := range impl.servicers {
 		for uniqueID, servicer := range ss {
+			if actID != "" && len(servicer.GetActIDs()) > 0 && !slices.Contains(servicer.GetActIDs(), actID) {
+				continue
+			}
+
+			if bizID != "" && len(servicer.GetBizIDs()) > 0 && !slices.Contains(servicer.GetBizIDs(), bizID) {
+				continue
+			}
+
 			if err := do(servicer); err != nil {
 				servicer.Remove("SendFailed")
 

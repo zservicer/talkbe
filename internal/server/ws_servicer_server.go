@@ -2,10 +2,10 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 
-	"encoding/json"
 	"github.com/gorilla/websocket"
 	"github.com/sgostarter/i/l"
 	"github.com/sgostarter/libservicetoolset/clienttoolset"
@@ -194,6 +194,12 @@ func loginHandler(gRPCClient talkpb.ServicerUserServicerClient, logger l.Wrapper
 		if err != nil {
 			logger.WithFields(l.ErrorField(err)).Error("LoginFailed")
 			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+
+		if len(resp.ActIds) == 0 || len(resp.BizIds) == 0 {
+			w.WriteHeader(http.StatusForbidden)
 
 			return
 		}

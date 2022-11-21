@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-func NewServicerServer(controller *controller.ServicerController, userTokenHelper defs.UserTokenHelper, model defs.ModelEx, logger l.Wrapper) talkpb.ServiceTalkServiceServer {
+func NewServicerServer(controller *controller.ServicerController, userTokenHelper defs.ServicerUserTokenHelper, model defs.ModelEx, logger l.Wrapper) talkpb.ServiceTalkServiceServer {
 	if logger == nil {
 		logger = l.NewNopLoggerWrapper()
 	}
@@ -34,7 +34,7 @@ type servicerServerImpl struct {
 	talkpb.UnimplementedServiceTalkServiceServer
 
 	logger          l.Wrapper
-	userTokenHelper defs.UserTokenHelper
+	userTokenHelper defs.ServicerUserTokenHelper
 	model           defs.ModelEx
 
 	controller *controller.ServicerController
@@ -47,7 +47,7 @@ func (impl *servicerServerImpl) Service(server talkpb.ServiceTalkService_Service
 		return gRPCMessageError(codes.InvalidArgument, "noServerStream")
 	}
 
-	_, userID, userName, err := impl.userTokenHelper.ExtractUserFromGRPCContext(server.Context(), false)
+	_, userID, userName, _, actIDs, bizIDs, err := impl.userTokenHelper.ExtractUserFromGRPCContext(server.Context(), false)
 	if err != nil {
 		return gRPCError(codes.Unauthenticated, err)
 	}
@@ -66,7 +66,7 @@ func (impl *servicerServerImpl) Service(server talkpb.ServiceTalkService_Service
 
 	chSendMessage := make(chan *talkpb.ServiceResponse, 100)
 
-	servicer := controller.NewServicer(userID, uniqueID, chSendMessage)
+	servicer := controller.NewServicer(userID, uniqueID, chSendMessage, actIDs, bizIDs)
 
 	err = impl.controller.InstallServicer(servicer)
 	if err != nil {

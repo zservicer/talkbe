@@ -7,4 +7,7 @@ type Servicer interface {
 	GetUniqueID() uint64
 	SendMessage(msg *talkpb.ServiceResponse) error
 	Remove(msg string)
+
+	GetActIDs() []string
+	GetBizIDs() []string
 }

@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
+// nolint: funlen
 func main() {
 	cfg := config.GetConfig()
 
@@ -93,7 +94,20 @@ func main() {
 		memorystatuscontroller.NewStatusController(), memoryauthingdatastorage.NewMemoryAuthingDataStorage(), logger)
 
 	servicerManager := userpassmanager.NewManager(cfg.ServicerPasswordSecret, serviceUserPassModel)
-	_, _ = servicerManager.Register(context.TODO(), "demo", "123456")
+	userID, err := servicerManager.Register(context.TODO(), "demo", "123456")
+
+	if err == nil {
+		_ = servicerManager.UpdateUserAllExData(context.TODO(), userID, map[string]interface{}{
+			"permission": 1,
+			"actIDs": []string{
+				"actIDDemo",
+			},
+			"bizIDs": []string{
+				"bizIDDemo",
+			},
+		})
+	}
+
 	servicerUserTokenHelper := impls.NewLocalServicerUserTokenHelper(servicerUserCenter, servicerManager)
 
 	servicerMD := impls.NewServicerMD(mdi, logger)

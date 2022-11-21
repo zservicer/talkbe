@@ -157,11 +157,31 @@ func customerWS(gRPCClient talkpb.CustomerTalkServiceClient, logger l.Wrapper) f
 
 func checkHandler(gRPCClient talkpb.CustomerUserServicerClient, logger l.Wrapper) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+
+		d, err := io.ReadAll(r.Body)
+		if err != nil {
+			logger.WithFields(l.ErrorField(err)).Error("ReadAllFailed")
+			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+
+		var request talkpb.CheckTokenRequest
+
+		err = proto.Unmarshal(d, &request)
+		if err != nil {
+			logger.WithFields(l.ErrorField(err)).Error("UnmarshalFailed")
+			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+
 		md := metadata.New(map[string]string{
 			"token": r.Header.Get(httpTokenHeaderKey),
 		})
 
-		resp, err := gRPCClient.CheckToken(metadata.NewOutgoingContext(context.TODO(), md), &talkpb.CheckTokenRequest{})
+		resp, err := gRPCClient.CheckToken(metadata.NewOutgoingContext(context.TODO(), md), &request)
 		if err != nil {
 			logger.WithFields(l.ErrorField(err)).Error("CheckTokenFailed")
 
@@ -170,7 +190,7 @@ func checkHandler(gRPCClient talkpb.CustomerUserServicerClient, logger l.Wrapper
 			return
 		}
 
-		d, _ := proto.Marshal(resp)
+		d, _ = proto.Marshal(resp)
 		_, _ = w.Write(d)
 	}
 }

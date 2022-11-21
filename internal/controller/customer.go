@@ -6,8 +6,10 @@ import (
 	"github.com/zservicer/talkbe/internal/defs"
 )
 
-func NewCustomer(uniqueID uint64, talkID string, createTalkFlag bool, userID uint64, chSendMessage chan *talkpb.TalkResponse) defs.Customer {
+func NewCustomer(actID, bizID string, uniqueID uint64, talkID string, createTalkFlag bool, userID uint64, chSendMessage chan *talkpb.TalkResponse) defs.Customer {
 	return &customerImpl{
+		actID:          actID,
+		bizID:          bizID,
 		uniqueID:       uniqueID,
 		talkID:         talkID,
 		createTalkFlag: createTalkFlag,
@@ -17,11 +19,22 @@ func NewCustomer(uniqueID uint64, talkID string, createTalkFlag bool, userID uin
 }
 
 type customerImpl struct {
+	actID string
+	bizID string
+
 	uniqueID       uint64
 	talkID         string
 	createTalkFlag bool
 	userID         uint64
 	chSendMessage  chan *talkpb.TalkResponse
+}
+
+func (impl *customerImpl) GetActID() string {
+	return impl.actID
+}
+
+func (impl *customerImpl) GetBizID() string {
+	return impl.bizID
 }
 
 func (impl *customerImpl) CreateTalkFlag() bool {

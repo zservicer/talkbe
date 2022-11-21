@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"time"
 
 	"github.com/sbasestarter/bizinters/userinters"
@@ -59,6 +60,19 @@ func main() {
 	serviceUserPassModel := userpassauthenticator.NewMongoUserPasswordModel(mongoCli, mongoOptions.Auth.AuthSource, "servicer_users", logger)
 	servicerManager := userpassmanager.NewManager(cfg.ServicerPasswordSecret, serviceUserPassModel)
 	servicerUserTokenHelper := impls.NewLocalServicerUserTokenHelper(servicerUserCenter, servicerManager)
+
+	userID, err := servicerManager.Register(context.TODO(), "demo", "123456")
+	if err == nil {
+		_ = servicerManager.UpdateUserAllExData(context.TODO(), userID, map[string]interface{}{
+			"permission": 1,
+			"actIDs": []string{
+				"actIDDemo",
+			},
+			"bizIDs": []string{
+				"bizIDDemo",
+			},
+		})
+	}
 
 	grpcServicerUserServer := server.NewServicerUserServer(servicerManager, servicerUserCenter, servicerUserTokenHelper)
 

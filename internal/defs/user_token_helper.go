@@ -1,17 +1,45 @@
 package defs
 
-import "context"
+import (
+	"context"
+
+	"github.com/sbasestarter/bizinters/userinters"
+)
 
 type UserTokenExtractor interface {
 	ExtractTokenFromGRPCContext(ctx context.Context) (token string, err error)
 }
 
-type UserTokenExplain interface {
-	ExplainToken(ctx context.Context, token string, renewToken bool) (newToken string, userID uint64, userName string, err error)
+type ServicerUserTokenExplain interface {
+	ExplainToken(ctx context.Context, token string, renewToken bool) (newToken string, userID uint64,
+		userName string, admin bool, actIDs, bizIDs []string, err error)
 }
 
-type UserTokenHelper interface {
+type ServicerExDataGen interface {
+	GenExData(actIDs, bizIDs []string) map[string]interface{}
+}
+
+type ServicerUserTokenHelper interface {
 	UserTokenExtractor
-	UserTokenExplain
-	ExtractUserFromGRPCContext(ctx context.Context, renewToken bool) (newToken string, userID uint64, userName string, err error)
+	ServicerUserTokenExplain
+	ServicerExDataGen
+	ExtractUserFromGRPCContext(ctx context.Context, renewToken bool) (newToken string, userID uint64,
+		userName string, admin bool, actIDs, bizIDs []string, err error)
+}
+
+type CustomerUserGenAnonymousAuthenticator interface {
+	NewAnonymousAuthenticator(userName, actID, bizID string) userinters.Authenticator
+}
+
+type CustomerUserTokenExplain interface {
+	ExplainToken(ctx context.Context, token string, renewToken bool) (newToken string, userID uint64,
+		userName, actID, bizID string, err error)
+}
+
+type CustomerUserTokenHelper interface {
+	UserTokenExtractor
+	CustomerUserTokenExplain
+	CustomerUserGenAnonymousAuthenticator
+	ExtractUserFromGRPCContext(ctx context.Context, renewToken bool) (newToken string, userID uint64,
+		userName, actID, bizID string, err error)
 }

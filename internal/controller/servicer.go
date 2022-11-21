@@ -6,11 +6,13 @@ import (
 	"github.com/zservicer/talkbe/internal/defs"
 )
 
-func NewServicer(userID, uniqueID uint64, chSendMessage chan *talkpb.ServiceResponse) defs.Servicer {
+func NewServicer(userID, uniqueID uint64, chSendMessage chan *talkpb.ServiceResponse, actIDs, bizIDs []string) defs.Servicer {
 	return &servicerImpl{
 		userID:        userID,
 		uniqueID:      uniqueID,
 		chSendMessage: chSendMessage,
+		actIDs:        actIDs,
+		bizIDs:        bizIDs,
 	}
 }
 
@@ -18,6 +20,9 @@ type servicerImpl struct {
 	userID        uint64
 	uniqueID      uint64
 	chSendMessage chan *talkpb.ServiceResponse
+
+	actIDs []string
+	bizIDs []string
 }
 
 func (impl *servicerImpl) GetUserID() uint64 {
@@ -47,4 +52,12 @@ func (impl *servicerImpl) Remove(msg string) {
 			},
 		},
 	})
+}
+
+func (impl *servicerImpl) GetActIDs() []string {
+	return impl.actIDs
+}
+
+func (impl *servicerImpl) GetBizIDs() []string {
+	return impl.bizIDs
 }

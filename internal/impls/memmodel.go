@@ -8,6 +8,7 @@ import (
 	"github.com/godruoyi/go-snowflake"
 	"github.com/sbasestarter/bizinters/talkinters"
 	"github.com/sgostarter/i/commerr"
+	"golang.org/x/exp/slices"
 )
 
 func NewMemModel() talkinters.Model {
@@ -43,7 +44,7 @@ func (impl *memModelImpl) CreateTalk(ctx context.Context, talkInfo *talkinters.T
 	return
 }
 
-func (impl *memModelImpl) OpenTalk(ctx context.Context, talkID string) error {
+func (impl *memModelImpl) OpenTalk(ctx context.Context, actIDs, bizIDs []string, talkID string) error {
 	impl.talksLock.Lock()
 	defer impl.talksLock.Unlock()
 
@@ -52,17 +53,33 @@ func (impl *memModelImpl) OpenTalk(ctx context.Context, talkID string) error {
 		return commerr.ErrNotFound
 	}
 
+	if len(actIDs) > 0 && !slices.Contains(actIDs, talk.info.ActID) {
+		return commerr.ErrNotFound
+	}
+
+	if len(bizIDs) > 0 && !slices.Contains(bizIDs, talk.info.BizID) {
+		return commerr.ErrNotFound
+	}
+
 	talk.info.Status = talkinters.TalkStatusOpened
 
 	return nil
 }
 
-func (impl *memModelImpl) CloseTalk(ctx context.Context, talkID string) error {
+func (impl *memModelImpl) CloseTalk(ctx context.Context, actIDs, bizIDs []string, talkID string) error {
 	impl.talksLock.Lock()
 	defer impl.talksLock.Unlock()
 
 	talk, ok := impl.talks[talkID]
 	if !ok {
+		return commerr.ErrNotFound
+	}
+
+	if len(actIDs) > 0 && !slices.Contains(actIDs, talk.info.ActID) {
+		return commerr.ErrNotFound
+	}
+
+	if len(bizIDs) > 0 && !slices.Contains(bizIDs, talk.info.BizID) {
 		return commerr.ErrNotFound
 	}
 
@@ -111,13 +128,21 @@ func (impl *memModelImpl) GetTalkMessages(ctx context.Context, talkID string, of
 	return
 }
 
-func (impl *memModelImpl) QueryTalks(ctx context.Context, creatorID, serviceID uint64, talkID string, statuses []talkinters.TalkStatus) (talks []*talkinters.TalkInfoR, err error) {
+func (impl *memModelImpl) QueryTalks(ctx context.Context, actIDs, bizIDs []string, creatorID, serviceID uint64, talkID string, statuses []talkinters.TalkStatus) (talks []*talkinters.TalkInfoR, err error) {
 	impl.talksLock.Lock()
 	defer impl.talksLock.Unlock()
 
 	talks = make([]*talkinters.TalkInfoR, 0, 10)
 
 	for id, talk := range impl.talks {
+		if len(actIDs) > 0 && !slices.Contains(actIDs, talk.info.ActID) {
+			continue
+		}
+
+		if len(bizIDs) > 0 && !slices.Contains(bizIDs, talk.info.BizID) {
+			continue
+		}
+
 		if creatorID > 0 {
 			if talk.info.CreatorID != creatorID {
 				continue
@@ -161,7 +186,7 @@ func (impl *memModelImpl) QueryTalks(ctx context.Context, creatorID, serviceID u
 	return
 }
 
-func (impl *memModelImpl) GetPendingTalkInfos(ctx context.Context) (talks []*talkinters.TalkInfoR, err error) {
+func (impl *memModelImpl) GetPendingTalkInfos(ctx context.Context, actIDs, bizIDs []string) (talks []*talkinters.TalkInfoR, err error) {
 	impl.talksLock.Lock()
 	defer impl.talksLock.Unlock()
 
@@ -169,6 +194,14 @@ func (impl *memModelImpl) GetPendingTalkInfos(ctx context.Context) (talks []*tal
 
 	for talkID, talk := range impl.talks {
 		if talk.info.ServiceID > 0 {
+			continue
+		}
+
+		if len(actIDs) > 0 && !slices.Contains(actIDs, talk.info.ActID) {
+			continue
+		}
+
+		if len(bizIDs) > 0 && !slices.Contains(bizIDs, talk.info.BizID) {
 			continue
 		}
 
@@ -181,7 +214,7 @@ func (impl *memModelImpl) GetPendingTalkInfos(ctx context.Context) (talks []*tal
 	return
 }
 
-func (impl *memModelImpl) UpdateTalkServiceID(ctx context.Context, talkID string, serviceID uint64) (err error) {
+func (impl *memModelImpl) UpdateTalkServiceID(ctx context.Context, actIDs, bizIDs []string, talkID string, serviceID uint64) (err error) {
 	impl.talksLock.Lock()
 	defer impl.talksLock.Unlock()
 
@@ -190,6 +223,14 @@ func (impl *memModelImpl) UpdateTalkServiceID(ctx context.Context, talkID string
 		err = commerr.ErrNotFound
 
 		return
+	}
+
+	if len(actIDs) > 0 && !slices.Contains(actIDs, talk.info.ActID) {
+		return commerr.ErrNotFound
+	}
+
+	if len(bizIDs) > 0 && !slices.Contains(bizIDs, talk.info.BizID) {
+		return commerr.ErrNotFound
 	}
 
 	talk.info.ServiceID = serviceID
