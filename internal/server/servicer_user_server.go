@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/sbasestarter/bizinters/userinters"
@@ -76,12 +77,18 @@ func (impl *servicerUserServerImpl) register(ctx context.Context, request *talkp
 		return
 	}
 
-	_, err = impl.userManager.Register(ctx, request.GetUserName(), request.GetPassword())
+	userID, err = impl.userManager.Register(ctx, request.GetUserName(), request.GetPassword())
 	if err != nil {
 		code = codes.Internal
 
 		return
 	}
+
+	_ = impl.userManager.UpdateUserAllExData(ctx, userID, impl.tokenHelper.GenExData([]string{
+		strconv.FormatUint(userID, 10),
+	}, []string{
+		"default",
+	}))
 
 	userID, token, code, err = impl.login(ctx, request.GetUserName(), request.GetPassword())
 	if code != codes.OK {

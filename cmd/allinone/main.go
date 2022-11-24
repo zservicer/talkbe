@@ -42,6 +42,7 @@ func main() {
 		Address:           cfg.Listen,
 		TLSConfig:         tlsConfig,
 		KeepAliveDuration: time.Minute * 10,
+		WebAddress:        cfg.WebAddress,
 	}
 
 	s, err := servicetoolset.NewGRPCServer(nil, grpcCfg,

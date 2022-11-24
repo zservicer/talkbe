@@ -14,6 +14,7 @@ type Config struct {
 
 	Listen        string                            `yaml:"Listen"`
 	GRPCTLSConfig *servicetoolset.GRPCTlsFileConfig `yaml:"GRPCTLSConfig"`
+	WebAddress    string                            `yaml:"WebAddress"`
 
 	CustomerListen     string `yaml:"CustomerListen"`
 	CustomerUserListen string `yaml:"CustomerUserListen"`
