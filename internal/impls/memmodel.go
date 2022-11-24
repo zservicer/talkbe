@@ -197,6 +197,10 @@ func (impl *memModelImpl) GetPendingTalkInfos(ctx context.Context, actIDs, bizID
 			continue
 		}
 
+		if talk.info.Status != talkinters.TalkStatusOpened {
+			continue
+		}
+
 		if len(actIDs) > 0 && !slices.Contains(actIDs, talk.info.ActID) {
 			continue
 		}

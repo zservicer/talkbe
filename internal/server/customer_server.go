@@ -76,6 +76,12 @@ func (impl *customerServerImpl) Talk(server talkpb.CustomerTalkService_TalkServe
 		return gRPCError(codes.Unauthenticated, nil)
 	}
 
+	if userName == "" || actID == "" || bizID == "" {
+		impl.logger.WithFields(l.ErrorField(err)).Error("invalidToken")
+
+		return gRPCError(codes.Unauthenticated, nil)
+	}
+
 	uniqueID := snowflake.ID()
 
 	logger := impl.logger.WithFields(l.StringField(l.RoutineKey, "Talk"),
